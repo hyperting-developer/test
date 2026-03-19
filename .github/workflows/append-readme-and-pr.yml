@@ -12,13 +12,11 @@
   - name: Push changes
     run: |
       git push origin HEAD:fix/readme-modificato-con-relevance
-    env:
-      GITHUB_TOKEN: ${{ secrets.AGENT_PAT }}
 
   - name: Create Pull Request
     uses: peter-evans/create-pull-request@v5
     with:
-      token: ${{ secrets.AGENT_PAT }}
+      token: ${{ secrets.GITHUB_TOKEN }}
       commit-message: Fix: aggiornamento README - modificato con relevance
       branch: fix/readme-modificato-con-relevance
       title: Fix: aggiornamento README - modificato con relevance
