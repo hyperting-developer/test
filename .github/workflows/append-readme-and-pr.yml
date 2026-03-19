@@ -1,27 +1,41 @@
-  - name: Configure git
-    run: |
-      git config user.name "automation-bot"
-      git config user.email "no-reply@example.com"
+name: Append README and open PR
 
-  - name: Append text to README.md
-    run: |
-      echo 'modificato con relevance' >> README.md
-      git add README.md
-      git commit -m "Fix: aggiornamento README - modificato con relevance" || echo "No changes to commit"
+on:
+  workflow_dispatch:  # or push:, pull_request:, etc.
 
-  - name: Push changes
-    run: |
-      git push origin HEAD:fix/readme-modificato-con-relevance
+jobs:
+  append-and-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-  - name: Create Pull Request
-    uses: peter-evans/create-pull-request@v5
-    with:
-      token: ${{ secrets.GITHUB_TOKEN }}
-      commit-message: Fix: aggiornamento README - modificato con relevance
-      branch: fix/readme-modificato-con-relevance
-      title: Fix: aggiornamento README - modificato con relevance
-      body: |
-        Riepilogo: richiesta di append al README.md con la stringa "modificato con relevance".
-        Branch: fix/readme-modificato-con-relevance
-        Note di testing: semplice append testuale.
-      base: main
+      - name: Configure git
+        run: |
+          git config user.name "automation-bot"
+          git config user.email "no-reply@example.com"
+
+      - name: Append text to README.md
+        run: |
+          echo 'modificato con relevance' >> README.md
+          git add README.md
+          git commit -m "Fix: aggiornamento README - modificato con relevance" || echo "No changes to commit"
+
+      - name: Push changes
+        run: |
+          git push origin HEAD:fix/readme-modificato-con-relevance
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: "${{ secrets.GITHUB_TOKEN }}"
+          commit-message: "Fix: aggiornamento README - modificato con relevance"
+          branch: "fix/readme-modificato-con-relevance"
+          title: "Fix: aggiornamento README - modificato con relevance"
+          body: |
+            Riepilogo: richiesta di append al README.md con la stringa "modificato con relevance".
+            Branch: fix/readme-modificato-con-relevance
+            Note di testing: semplice append testuale.
+          base: "main"
