@@ -2,7 +2,7 @@ name: GitHub Issues to Trello
 
 on:
   issues:
-    types: [opened, labeled]
+    types: [opened]
 
 jobs:
   create-trello-card:
@@ -15,10 +15,9 @@ jobs:
         with:
           script: |
             const issue = context.payload.issue;
-            const labels = (issue.labels || []).map(label => {
-              if (typeof label === 'string') return label.toLowerCase();
-              return (label.name || '').toLowerCase();
-            });
+            const labels = (issue.labels || []).map(label =>
+              (typeof label === 'string' ? label : label.name || '').toLowerCase()
+            );
 
             let listName = 'To do';
             if (labels.includes('bug')) {
@@ -35,6 +34,7 @@ jobs:
           TRELLO_API_KEY: ${{ secrets.TRELLO_API_KEY }}
           TRELLO_TOKEN: ${{ secrets.TRELLO_TOKEN }}
           TRELLO_BOARD_NAME: Test
+          TRELLO_LIST_NAME: ${{ steps.routing.outputs.list_name }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_BODY: ${{ github.event.issue.body }}
@@ -42,14 +42,14 @@ jobs:
           ISSUE_USER: ${{ github.event.issue.user.login }}
           ISSUE_STATE: ${{ github.event.issue.state }}
           ISSUE_LABELS: ${{ steps.routing.outputs.labels }}
-          TRELLO_LIST_NAME: ${{ steps.routing.outputs.list_name }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
-          set -e
+          set -euo pipefail
 
           CARD_NAME="[#${ISSUE_NUMBER}] ${ISSUE_TITLE}"
 
           CARD_DESC=$(cat <<EOF
-Repository: ${{ github.repository }}
+Repository: ${GITHUB_REPOSITORY}
 Issue URL: ${ISSUE_URL}
 Autore: ${ISSUE_USER}
 Stato: ${ISSUE_STATE}
@@ -60,49 +60,25 @@ ${ISSUE_BODY}
 EOF
 )
 
-          BOARD_RESPONSE=$(curl -s "https://api.trello.com/1/members/me/boards?fields=name,url,id&key=${TRELLO_API_KEY}&token=${TRELLO_TOKEN}")
-          echo "$BOARD_RESPONSE" > /tmp/boards.json
+          BOARDS_JSON=$(curl -fsSL "https://api.trello.com/1/members/me/boards?fields=name,id&key=${TRELLO_API_KEY}&token=${TRELLO_TOKEN}")
 
-          LIST_ID=$(python3 - <<'PY'
-import json
-import os
-import requests
+          BOARD_ID=$(echo "$BOARDS_JSON" | jq -r --arg BOARD_NAME "$TRELLO_BOARD_NAME" '.[] | select(.name == $BOARD_NAME) | .id' | head -n 1)
 
-key = os.environ['TRELLO_API_KEY']
-token = os.environ['TRELLO_TOKEN']
-board_name = os.environ['TRELLO_BOARD_NAME']
-list_name = os.environ['TRELLO_LIST_NAME']
+          if [ -z "${BOARD_ID}" ] || [ "${BOARD_ID}" = "null" ]; then
+            echo "Board Trello non trovata: ${TRELLO_BOARD_NAME}"
+            exit 1
+          fi
 
-with open('/tmp/boards.json', 'r', encoding='utf-8') as f:
-    boards = json.load(f)
+          LISTS_JSON=$(curl -fsSL "https://api.trello.com/1/boards/${BOARD_ID}/lists?fields=name&filter=open&key=${TRELLO_API_KEY}&token=${TRELLO_TOKEN}")
 
-board = next((b for b in boards if b.get('name') == board_name), None)
-if not board:
-    raise SystemExit(f"Board Trello non trovata: {board_name}")
+          LIST_ID=$(echo "$LISTS_JSON" | jq -r --arg LIST_NAME "$TRELLO_LIST_NAME" '.[] | select(.name == $LIST_NAME) | .id' | head -n 1)
 
-board_id = board['id']
-resp = requests.get(
-    f"https://api.trello.com/1/boards/{board_id}/lists",
-    params={
-        'key': key,
-        'token': token,
-        'fields': 'name',
-        'filter': 'open'
-    }
-)
-resp.raise_for_status()
-lists = resp.json()
+          if [ -z "${LIST_ID}" ] || [ "${LIST_ID}" = "null" ]; then
+            echo "Lista Trello non trovata nella board '${TRELLO_BOARD_NAME}': ${TRELLO_LIST_NAME}"
+            exit 1
+          fi
 
-selected_list = next((l for l in lists if l.get('name') == list_name), None)
-if not selected_list:
-    raise SystemExit(f"Lista Trello non trovata nella board '{board_name}': {list_name}")
-
-print(selected_list['id'])
-PY
-)
-
-          curl --fail --request POST \
-            --url "https://api.trello.com/1/cards" \
+          curl -fsSL -X POST "https://api.trello.com/1/cards" \
             --data-urlencode "key=${TRELLO_API_KEY}" \
             --data-urlencode "token=${TRELLO_TOKEN}" \
             --data-urlencode "idList=${LIST_ID}" \
