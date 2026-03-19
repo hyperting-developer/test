@@ -16,7 +16,7 @@ jobs:
           script: |
             const issue = context.payload.issue;
             const labels = (issue.labels || []).map(label =>
-              (typeof label === 'string' ? label : label.name || '').toLowerCase()
+              (typeof label === 'string' ? label : (label.name || '')).toLowerCase()
             );
 
             let listName = 'To do';
@@ -48,17 +48,15 @@ jobs:
 
           CARD_NAME="[#${ISSUE_NUMBER}] ${ISSUE_TITLE}"
 
-          CARD_DESC=$(cat <<EOF
-Repository: ${GITHUB_REPOSITORY}
-Issue URL: ${ISSUE_URL}
-Autore: ${ISSUE_USER}
-Stato: ${ISSUE_STATE}
-Labels: ${ISSUE_LABELS}
-
-Descrizione issue:
-${ISSUE_BODY}
-EOF
-)
+          CARD_DESC=$(printf '%s\n' \
+            "Repository: ${GITHUB_REPOSITORY}" \
+            "Issue URL: ${ISSUE_URL}" \
+            "Autore: ${ISSUE_USER}" \
+            "Stato: ${ISSUE_STATE}" \
+            "Labels: ${ISSUE_LABELS}" \
+            "" \
+            "Descrizione issue:" \
+            "${ISSUE_BODY}")
 
           BOARDS_JSON=$(curl -fsSL "https://api.trello.com/1/members/me/boards?fields=name,id&key=${TRELLO_API_KEY}&token=${TRELLO_TOKEN}")
 
